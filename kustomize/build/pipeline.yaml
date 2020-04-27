@@ -1,0 +1,48 @@
+---
+apiVersion: tekton.dev/v1alpha1
+kind: Pipeline
+metadata:
+  name: build
+spec:
+  resources:
+    - name: source
+      type: git
+    - name: image
+      type: image
+  tasks:
+#    - name: test-and-build
+#      taskRef:
+#        name: rust-unit-and-build
+#        kind: Task
+#      resources:
+#        inputs:
+#          - name: source
+#            resource: source
+#        outputs:
+#          - name: image
+#            resource: image
+    - name: prepare-dev-env
+      taskRef:
+        name: kustomize
+        kind: Task
+#      runAfter:
+#        - test-and-build
+      resources:
+        inputs:
+          - name: source
+            resource: source
+      params:
+        - name: env
+          value: kustomize/dev
+    - name: promote-image-dev
+      taskRef:
+        name: openshift-client
+        kind: ClusterTask
+      runAfter:
+        - prepare-dev-env
+      params:
+        - name: ARGS
+          value:
+            - tag
+            - rust-rest-build/rust-rest:latest
+            - rust-rest-dev/rust-rest:latest

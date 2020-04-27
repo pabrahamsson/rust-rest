@@ -1,0 +1,7 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rust-rest-build
+  annotations:
+    openshift-provision/action: create

@@ -1,0 +1,112 @@
+---
+apiVersion: tekton.dev/v1alpha1
+kind: Task
+metadata:
+  name: rust-unit-and-build
+spec:
+  inputs:
+    resources:
+      - name: source
+        type: git
+  outputs:
+    resources:
+      - name: image
+        type: image
+  steps:
+    - name: cargo-test
+      image: quay.io/pabrahamsson/build-s2i-rust
+      command:
+        - /bin/bash
+      args:
+        - -c
+        - 'cd /workspace/source && ls -al && rustup override set nightly && cargo test --release'
+    - name: cargo-build
+      image: quay.io/pabrahamsson/build-s2i-rust
+      command:
+        - /bin/bash
+      args:
+        - -c
+        - 'cd /workspace/source && rustup override set nightly && cargo build --release'
+    - name: create-artifacts-dir
+      image: quay.io/openshift/origin-cli:latest
+      command:
+        - /bin/bash
+      args:
+        - -c
+        - 'mkdir -p /workspace/source/shared'
+    - name: copy-artifacts
+      image: quay.io/openshift/origin-cli:latest
+      command:
+        - /bin/bash
+      args:
+        - -c
+        - 'cp -r /workspace/source/target/release/rust-rest /workspace/source/Cargo.toml /workspace/source/Rocket.toml /workspace/source/src /workspace/source/shared/'
+    - name: build-image
+      image: quay.io/openshift/origin-cli:latest
+      command:
+        - oc
+      args:
+        - start-build
+        - -w
+        - -F
+        - rust-rest
+        - --from-dir
+        - /workspace/source/shared
+  workspaces:
+  - name: git-source
+    mountPath: /workspace/source
+---
+apiVersion: tekton.dev/v1alpha1
+kind: Task
+metadata:
+  name: kustomize
+spec:
+  inputs:
+    params:
+      - name: env
+        type: string
+    resources:
+      - name: source
+        type: git
+  steps:
+    - name: kustomize
+      image: quay.io/openshift-pipeline/openshift-cli
+      command:
+        - oc
+      args:
+        - apply
+        - -k
+        - "$(inputs.params.env)"
+---
+apiVersion: tekton.dev/v1alpha1
+kind: Task
+metadata:
+  name: debug
+spec:
+  inputs:
+    params:
+      - name: command
+        type: string
+        default: echo
+      - name: args
+        type: string
+  steps:
+    - name: debug
+      image: quay.io/openshift-pipeline/openshift-cli
+      command:
+        - "$(inputs.params.command)"
+      args:
+        - "$(inputs.params.args)"
+#---
+#apiVersion: tekton.dev/v1alpha1
+#kind: TaskRun
+#metadata:
+#  name: test-and-build
+#spec:
+#  taskRef:
+#    name: rust-test
+#  resources:
+#    inputs:
+#      - name: source
+#        resourceRef:
+#          name: source

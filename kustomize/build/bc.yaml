@@ -1,0 +1,22 @@
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: rust-rest
+spec:
+  output:
+    to:
+      kind: ImageStreamTag
+      name: rust-rest:latest
+  source:
+    dockerfile: |
+      FROM registry.access.redhat.com/ubi8/ubi-minimal
+      RUN mkdir -p /application/src
+      WORKDIR /application
+      COPY . .
+      USER 1001
+      EXPOSE 8080
+      CMD ["/application/rust-rest"]
+    type: Dockerfile
+  strategy:
+    type: Docker

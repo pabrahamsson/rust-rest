@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rust-rest
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        deploymentconfig: rust-rest
+    spec:
+      containers:
+      - image: rust-rest:latest
+        imagePullPolicy: Always
+        name: rust-rest
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30

@@ -1,0 +1,11 @@
+---
+resources:
+  - rb-edit.yaml
+  - is.yaml
+  - svc.yaml
+  - route.yaml
+  - deployment.yaml
+commonLabels:
+  app: rust-rest
+  app.kubernetes.io/component: rust-rest
+  app.kubernetes.io/instance: rust-rest
