@@ -2,6 +2,7 @@
 namespace: rust-rest-build
 resources:
   - ns.yaml
+  - rb-self-provisioner.yaml
   - is.yaml
   - bc.yaml
   - tasks.yaml

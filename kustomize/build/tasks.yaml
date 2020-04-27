@@ -76,7 +76,7 @@ spec:
       args:
         - apply
         - -k
-        - "$(inputs.params.env)"
+        - "source/$(inputs.params.env)"
 ---
 apiVersion: tekton.dev/v1alpha1
 kind: Task

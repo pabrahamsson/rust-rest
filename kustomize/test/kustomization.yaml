@@ -2,8 +2,8 @@
 namespace: rust-rest-test
 bases:
   - ../base
-resources:
-  - ns.yaml
+#resources:
+#  - ns.yaml
 patchesJson6902:
   - target:
       group: apps
