@@ -138,6 +138,14 @@ fn version(ver: State<Version>) -> JsonValue {
     })
 }
 
+#[get("/healthz")]
+fn health() -> JsonValue {
+    json!({
+        "status": "200",
+        "message": "OK"
+    })
+}
+
 #[catch(404)]
 fn not_found() -> JsonValue {
     json!({
@@ -180,7 +188,7 @@ fn rocket() -> rocket::Rocket {
     let prometheus = PrometheusMetrics::new();
     rocket::ignite()
         .attach(prometheus.clone())
-        .mount("/", routes![root, version])
+        .mount("/", routes![root, version, health])
         .mount("/metrics", prometheus)
         .mount(
             "/v1",
