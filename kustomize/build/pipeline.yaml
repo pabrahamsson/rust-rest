@@ -3,6 +3,7 @@ apiVersion: tekton.dev/v1alpha1
 kind: Pipeline
 metadata:
   name: build
+  namespace: rust-rest-build
 spec:
   resources:
     - name: source
@@ -10,23 +11,26 @@ spec:
     - name: image
       type: image
   tasks:
-#    - name: test-and-build
-#      taskRef:
-#        name: rust-unit-and-build
-#        kind: Task
-#      resources:
-#        inputs:
-#          - name: source
-#            resource: source
-#        outputs:
-#          - name: image
-#            resource: image
+    - name: test-and-build
+      taskRef:
+        name: rust-unit-and-build
+        kind: Task
+      resources:
+        inputs:
+          - name: source
+            resource: source
+        outputs:
+          - name: image
+            resource: image
+      workspaces:
+        - name: git-source
+          workspace: pipeline-ws1
     - name: prepare-dev-env
       taskRef:
         name: kustomize
         kind: Task
-#      runAfter:
-#        - test-and-build
+      runAfter:
+        - test-and-build
       resources:
         inputs:
           - name: source
@@ -36,13 +40,31 @@ spec:
           value: kustomize/dev
     - name: promote-image-dev
       taskRef:
-        name: openshift-client
-        kind: ClusterTask
+        name: promote
+        kind: Task
       runAfter:
         - prepare-dev-env
       params:
-        - name: ARGS
-          value:
-            - tag
-            - rust-rest-build/rust-rest:latest
-            - rust-rest-dev/rust-rest:latest
+        - name: env
+          value: dev
+        - name: commit
+          value: "$(tasks.test-and-build.results.git-sha)"
+      workspaces:
+        - name: git-source
+          workspace: pipeline-ws1
+    - name: deploy-verify-dev
+      taskRef:
+        name: deploy-and-verify
+        kind: Task
+      runAfter:
+        - promote-image-dev
+      params:
+        - name: env
+          value: dev
+        - name: commit
+          value: "$(tasks.test-and-build.results.git-sha)"
+      workspaces:
+        - name: git-source
+          workspace: pipeline-ws1
+  workspaces:
+    - name: pipeline-ws1

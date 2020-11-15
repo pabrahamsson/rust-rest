@@ -4,4 +4,4 @@ metadata:
   name: rust-rest
 spec:
   lookupPolicy:
-    local: false
+    local: true

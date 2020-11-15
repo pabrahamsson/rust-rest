@@ -1,8 +1,12 @@
 ---
-namespace: rust-rest-build
 resources:
   - ns.yaml
-  - rb-self-provisioner.yaml
+  - ns-dev.yaml
+  - ns-test.yaml
+  - ns-prod.yaml
+  - rb-edit-dev.yaml
+  - rb-edit-test.yaml
+  - rb-edit-prod.yaml
   - is.yaml
   - bc.yaml
   - tasks.yaml

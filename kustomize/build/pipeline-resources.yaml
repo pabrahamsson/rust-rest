@@ -3,6 +3,7 @@ apiVersion: tekton.dev/v1alpha1
 kind: PipelineResource
 metadata:
   name: source
+  namespace: rust-rest-build
 spec:
   type: git
   params:
@@ -13,6 +14,7 @@ apiVersion: tekton.dev/v1alpha1
 kind: PipelineResource
 metadata:
   name: image
+  namespace: rust-rest-build
 spec:
   type: image
   params:
@@ -23,6 +25,7 @@ apiVersion: tekton.dev/v1alpha1
 kind: PipelineResource
 metadata:
   name: image-dev
+  namespace: rust-rest-build
 spec:
   type: image
   params:

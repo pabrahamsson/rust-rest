@@ -1,71 +1,108 @@
 ---
-apiVersion: tekton.dev/v1alpha1
+apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
   name: rust-unit-and-build
+  namespace: rust-rest-build
 spec:
-  inputs:
-    resources:
+  resources:
+    inputs:
       - name: source
         type: git
-  outputs:
-    resources:
+    outputs:
       - name: image
         type: image
+  results:
+    - name: git-sha
   steps:
-    - name: cargo-test
-      image: quay.io/pabrahamsson/build-s2i-rust
+#    - name: cargo-build
+#      image: quay.io/pabrahamsson/build-s2i-rust
+#      workingDir: "$(workspaces.git-source.path)"
+#      command:
+#        - /bin/bash
+#      args:
+#        - -c
+#        - >-
+#          ls -al &&
+#          rustup override set nightly &&
+#          cargo update -p pear &&
+#          cargo update -p pear_codegen &&
+#          cargo build --release
+#    - name: cargo-test
+#      image: quay.io/pabrahamsson/build-s2i-rust
+#      workingDir: "$(workspaces.git-source.path)"
+#      command:
+#        - /bin/bash
+#      args:
+#        - -c
+#        - >-
+#          rustup override set nightly &&
+#          cargo test --release
+#    - name: create-artifacts-dir
+#      image: quay.io/openshift/origin-cli:latest
+#      workingDir: "$(workspaces.git-source.path)"
+#      command:
+#        - /bin/bash
+#      args:
+#        - -c
+#        - |
+#          mkdir -p shared
+#    - name: copy-artifacts
+#      image: quay.io/openshift/origin-cli:latest
+#      workingDir: "$(workspaces.git-source.path)"
+#      command:
+#        - /bin/bash
+#      args:
+#        - -c
+#        - |
+#          cp -r target/release/rust-rest Cargo.toml Rocket.toml src shared/
+    - name: get-git-commit-sha
+      image: quay.io/redhat-cop/ubi8-git:latest
+      workingDir: "$(workspaces.git-source.path)"
       command:
         - /bin/bash
       args:
         - -c
-        - 'cd /workspace/source && ls -al && rustup override set nightly && cargo test --release'
-    - name: cargo-build
-      image: quay.io/pabrahamsson/build-s2i-rust
-      command:
-        - /bin/bash
-      args:
-        - -c
-        - 'cd /workspace/source && rustup override set nightly && cargo build --release'
-    - name: create-artifacts-dir
+        - >-
+          git rev-parse HEAD | cut -c1-7 >
+          $(results.git-sha.path)
+#    - name: build-image
+#      image: quay.io/openshift/origin-cli:latest
+#      workingDir: "$(workspaces.git-source.path)"
+#      command:
+#        - oc
+#      args:
+#        - start-build
+#        - -w
+#        - -F
+#        - rust-rest
+#        - --from-dir
+#        - shared
+    - name: tag-image
       image: quay.io/openshift/origin-cli:latest
+      workingDir: "$(workspaces.git-source.path)"
       command:
-        - /bin/bash
+        - bash
       args:
         - -c
-        - 'mkdir -p /workspace/source/shared'
-    - name: copy-artifacts
-      image: quay.io/openshift/origin-cli:latest
-      command:
-        - /bin/bash
-      args:
-        - -c
-        - 'cp -r /workspace/source/target/release/rust-rest /workspace/source/Cargo.toml /workspace/source/Rocket.toml /workspace/source/src /workspace/source/shared/'
-    - name: build-image
-      image: quay.io/openshift/origin-cli:latest
-      command:
-        - oc
-      args:
-        - start-build
-        - -w
-        - -F
-        - rust-rest
-        - --from-dir
-        - /workspace/source/shared
+        - >-
+          oc tag rust-rest-build/rust-rest:latest
+          rust-rest-build/rust-rest:$(cat $(results.git-sha.path))
   workspaces:
   - name: git-source
     mountPath: /workspace/source
 ---
-apiVersion: tekton.dev/v1alpha1
+apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
   name: kustomize
+  namespace: rust-rest-build
 spec:
-  inputs:
-    params:
-      - name: env
-        type: string
-    resources:
+  params:
+    - name: env
+      type: string
+  resources:
+    inputs:
       - name: source
         type: git
   steps:
@@ -76,37 +113,56 @@ spec:
       args:
         - apply
         - -k
-        - "source/$(inputs.params.env)"
+        - "source/$(params.env)"
 ---
-apiVersion: tekton.dev/v1alpha1
+apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
-  name: debug
+  name: promote
+  namespace: rust-rest-build
 spec:
-  inputs:
-    params:
-      - name: command
-        type: string
-        default: echo
-      - name: args
-        type: string
+  params:
+    - name: env
+      type: string
+    - name: commit
+      type: string
   steps:
-    - name: debug
+
+    - name: promote-image
       image: quay.io/openshift-pipeline/openshift-cli
+      workingDir: "$(workspaces.git-source.path)"
       command:
-        - "$(inputs.params.command)"
+        - oc
       args:
-        - "$(inputs.params.args)"
-#---
-#apiVersion: tekton.dev/v1alpha1
-#kind: TaskRun
-#metadata:
-#  name: test-and-build
-#spec:
-#  taskRef:
-#    name: rust-test
-#  resources:
-#    inputs:
-#      - name: source
-#        resourceRef:
-#          name: source
+        - tag
+        - "rust-rest-build/rust-rest:$(params.commit)"
+        - "rust-rest-$(params.env)/rust-rest:$(params.commit)"
+  workspaces:
+  - name: git-source
+    mountPath: /workspace/source
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: deploy-and-verify
+  namespace: rust-rest-build
+spec:
+  params:
+    - name: env
+      type: string
+    - name: commit
+      type: string
+  steps:
+    - name: deploy-and-verify
+      image: quay.io/openshift-pipeline/openshift-cli
+      workingDir: "$(workspaces.git-source.path)"
+      command:
+        - bash
+      args:
+        - -c
+        - >-
+          oc set image deployment/rust-rest "rust-rest=rust-rest:$(params.commit)" -n "rust-rest-$(params.env)" &&
+          oc rollout status deployment/rust-rest -n "rust-rest-$(params.env)" -w
+  workspaces:
+  - name: git-source
+    mountPath: /workspace/source

@@ -1,0 +1,28 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: build-
+  namespace: rust-rest-build
+spec:
+  pipelineRef:
+    name: build
+  resources:
+    - name: source
+      resourceRef:
+        name: source
+    - name: image
+      resourceRef:
+        name: image
+  serviceAccountName: pipeline
+  timeout: 1h0m0s
+  workspaces:
+    - name: pipeline-ws1
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 5Gi
+#      persistentVolumeClaim:
+#        claimName: pipeline-ws1

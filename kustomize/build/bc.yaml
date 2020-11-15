@@ -3,6 +3,7 @@ apiVersion: build.openshift.io/v1
 kind: BuildConfig
 metadata:
   name: rust-rest
+  namespace: rust-rest-build
 spec:
   output:
     to:
@@ -20,3 +21,4 @@ spec:
     type: Dockerfile
   strategy:
     type: Docker
+  triggers: []
