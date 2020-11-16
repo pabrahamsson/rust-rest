@@ -2,60 +2,16 @@
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
-  name: rust-unit-and-build
+  name: git-commit
   namespace: rust-rest-build
 spec:
   resources:
     inputs:
       - name: source
         type: git
-    outputs:
-      - name: image
-        type: image
   results:
     - name: git-sha
   steps:
-#    - name: cargo-build
-#      image: quay.io/pabrahamsson/build-s2i-rust
-#      workingDir: "$(workspaces.git-source.path)"
-#      command:
-#        - /bin/bash
-#      args:
-#        - -c
-#        - >-
-#          ls -al &&
-#          rustup override set nightly &&
-#          cargo update -p pear &&
-#          cargo update -p pear_codegen &&
-#          cargo build --release
-#    - name: cargo-test
-#      image: quay.io/pabrahamsson/build-s2i-rust
-#      workingDir: "$(workspaces.git-source.path)"
-#      command:
-#        - /bin/bash
-#      args:
-#        - -c
-#        - >-
-#          rustup override set nightly &&
-#          cargo test --release
-#    - name: create-artifacts-dir
-#      image: quay.io/openshift/origin-cli:latest
-#      workingDir: "$(workspaces.git-source.path)"
-#      command:
-#        - /bin/bash
-#      args:
-#        - -c
-#        - |
-#          mkdir -p shared
-#    - name: copy-artifacts
-#      image: quay.io/openshift/origin-cli:latest
-#      workingDir: "$(workspaces.git-source.path)"
-#      command:
-#        - /bin/bash
-#      args:
-#        - -c
-#        - |
-#          cp -r target/release/rust-rest Cargo.toml Rocket.toml src shared/
     - name: get-git-commit-sha
       image: quay.io/redhat-cop/ubi8-git:latest
       workingDir: "$(workspaces.git-source.path)"
@@ -63,21 +19,103 @@ spec:
         - /bin/bash
       args:
         - -c
+        - |
+          git rev-parse HEAD | cut -c1-7 > $(results.git-sha.path)
+  workspaces:
+    - name: git-source
+      mountPath: /workspace/source
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: is-tags
+  namespace: rust-rest-build
+spec:
+  params:
+    - name: git-tag
+      type: string
+  results:
+    - name: is-tag
+  steps:
+    - name: get-tag-in-is
+      image: quay.io/openshift/origin-cli:latest
+      command:
+        - /bin/bash
+      args:
+        - -c
+        - |
+          oc get is rust-rest --template '{{range .status.tags}}{{.tag}}{{"\n"}}{{end}}' | grep $(echo "$(params.git-tag)" | tr -d '\n') | tee $(results.is-tag.path)
+  workspaces:
+    - name: git-source
+      mountPath: /workspace/source
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: rust-unit-and-build
+  namespace: rust-rest-build
+spec:
+  params:
+    - name: commit
+      type: string
+    - name: tag
+      type: string
+  resources:
+    outputs:
+      - name: image
+        type: image
+  steps:
+    - name: cargo-build
+      image: quay.io/pabrahamsson/build-s2i-rust
+      workingDir: "$(workspaces.git-source.path)"
+      command:
+        - /bin/bash
+      args:
+        - -c
         - >-
-          git rev-parse HEAD | cut -c1-7 >
-          $(results.git-sha.path)
-#    - name: build-image
-#      image: quay.io/openshift/origin-cli:latest
-#      workingDir: "$(workspaces.git-source.path)"
-#      command:
-#        - oc
-#      args:
-#        - start-build
-#        - -w
-#        - -F
-#        - rust-rest
-#        - --from-dir
-#        - shared
+          ls -al &&
+          rustup override set nightly &&
+          cargo build --release
+    - name: cargo-test
+      image: quay.io/pabrahamsson/build-s2i-rust
+      workingDir: "$(workspaces.git-source.path)"
+      command:
+        - /bin/bash
+      args:
+        - -c
+        - >-
+          rustup override set nightly &&
+          cargo test --release
+    - name: create-artifacts-dir
+      image: quay.io/openshift/origin-cli:latest
+      workingDir: "$(workspaces.git-source.path)"
+      command:
+        - /bin/bash
+      args:
+        - -c
+        - |
+          mkdir -p shared
+    - name: copy-artifacts
+      image: quay.io/openshift/origin-cli:latest
+      workingDir: "$(workspaces.git-source.path)"
+      command:
+        - /bin/bash
+      args:
+        - -c
+        - |
+          cp -r target/release/rust-rest Cargo.toml Rocket.toml src shared/
+    - name: build-image
+      image: quay.io/openshift/origin-cli:latest
+      workingDir: "$(workspaces.git-source.path)"
+      command:
+        - oc
+      args:
+        - start-build
+        - -w
+        - -F
+        - rust-rest
+        - --from-dir
+        - shared
     - name: tag-image
       image: quay.io/openshift/origin-cli:latest
       workingDir: "$(workspaces.git-source.path)"
@@ -87,7 +125,7 @@ spec:
         - -c
         - >-
           oc tag rust-rest-build/rust-rest:latest
-          rust-rest-build/rust-rest:$(cat $(results.git-sha.path))
+          rust-rest-build/rust-rest:$(params.commit)
   workspaces:
   - name: git-source
     mountPath: /workspace/source

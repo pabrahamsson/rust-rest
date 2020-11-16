@@ -1,5 +1,5 @@
 ---
-apiVersion: tekton.dev/v1alpha1
+apiVersion: tekton.dev/v1beta1
 kind: Pipeline
 metadata:
   name: build
@@ -11,14 +11,45 @@ spec:
     - name: image
       type: image
   tasks:
-    - name: test-and-build
+    - name: get-git-commit
       taskRef:
-        name: rust-unit-and-build
+        name: git-commit
         kind: Task
       resources:
         inputs:
           - name: source
             resource: source
+      workspaces:
+        - name: git-source
+          workspace: pipeline-ws1
+    - name: get-is-tag
+      taskRef:
+        name: is-tags
+        kind: Task
+      params:
+        - name: git-tag
+          value: "$(tasks.get-git-commit.results.git-sha)"
+      workspaces:
+        - name: git-source
+          workspace: pipeline-ws1
+    - name: test-and-build
+      when:
+        - input: "$(tasks.get-git-commit.results.git-sha)"
+          operator: notin
+          values:
+            - "$(tasks.get-is-tag.results.is-tag)"
+      taskRef:
+        name: rust-unit-and-build
+        kind: Task
+      runAfter:
+        - get-git-commit
+        - get-is-tag
+      params:
+        - name: commit
+          value: "$(tasks.get-git-commit.results.git-sha)"
+        - name: tag
+          value: "$(tasks.get-is-tag.results.is-tag)"
+      resources:
         outputs:
           - name: image
             resource: image
@@ -48,7 +79,7 @@ spec:
         - name: env
           value: dev
         - name: commit
-          value: "$(tasks.test-and-build.results.git-sha)"
+          value: "$(tasks.get-git-commit.results.git-sha)"
       workspaces:
         - name: git-source
           workspace: pipeline-ws1
@@ -62,7 +93,7 @@ spec:
         - name: env
           value: dev
         - name: commit
-          value: "$(tasks.test-and-build.results.git-sha)"
+          value: "$(tasks.get-git-commit.results.git-sha)"
       workspaces:
         - name: git-source
           workspace: pipeline-ws1
