@@ -98,15 +98,15 @@ spec:
         - set-revision
       params:
         - name: GIT_USER_NAME
-          value: Petter Abrahamsson
+          value: Tekton git bot
         - name: GIT_USER_EMAIL
-          value: petter@jebus.nu
+          value: tekton@tekton-pipelines.dev
         - name: GIT_SCRIPT
           value: |
             git status
             git diff
-            git commit -a -m "Update version"
-            git push origin
+            git commit -a -m "Update to revision $(git rev-parse --short HEAD | tr -d '\n')"
+            git push origin HEAD:main
       workspaces:
         - name: source
           workspace: app-deployment-source

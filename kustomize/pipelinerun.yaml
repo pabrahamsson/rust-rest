@@ -10,7 +10,7 @@ spec:
     - name: source-repo-url
       value: https://github.com/pabrahamsson/rust-rest.git
     - name: deployment-repo-url
-      value: https://github.com/pabrahamsson/rust-rest-deployment.git
+      value: git@github.com:pabrahamsson/rust-rest-deployment.git
   serviceAccountName: pipeline
   timeout: 1h0m0s
   workspaces:
