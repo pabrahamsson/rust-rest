@@ -1,10 +1,11 @@
 ---
 resources:
-#  - rb-edit.yaml
+  - ns.yaml
+  - rbac.yaml
   - is.yaml
-  - svc.yaml
-  - route.yaml
-  - deployment.yaml
+  - tasks.yaml
+  - pipeline-resources.yaml
+  - pipeline.yaml
 commonLabels:
   app: rust-rest
   app.kubernetes.io/component: rust-rest

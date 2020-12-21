@@ -1,4 +1,0 @@
----
-namespace: rust-rest-dev
-bases:
-  - ../base

@@ -1,0 +1,91 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: git-commit
+  namespace: rust-rest-build
+spec:
+  resources:
+    inputs:
+      - name: source
+        type: git
+  results:
+    - name: git-sha
+  steps:
+    - name: get-git-commit-sha
+      image: quay.io/redhat-cop/ubi8-git:latest
+      workingDir: "$(workspaces.git-source.path)"
+      command:
+        - /bin/bash
+      args:
+        - -c
+        - |
+          git rev-parse HEAD | cut -c1-7 > $(results.git-sha.path)
+  workspaces:
+    - name: git-source
+      mountPath: /workspace/source
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: is-tags
+  namespace: rust-rest-build
+spec:
+  params:
+    - name: git-tag
+      type: string
+  results:
+    - name: is-tag
+  steps:
+    - name: get-tag-in-is
+      image: quay.io/openshift/origin-cli:latest
+      command:
+        - /bin/bash
+      args:
+        - -c
+        - |
+          oc get is rust-rest --template '{{range .status.tags}}{{.tag}}{{"\n"}}{{end}}' | grep $(echo "$(params.git-tag)" | tr -d '\n') | tee $(results.is-tag.path)
+  workspaces:
+    - name: git-source
+      mountPath: /workspace/source
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: rust-unit-test
+  namespace: rust-rest-build
+spec:
+  steps:
+    - name: cargo-build
+      image: quay.io/pabrahamsson/build-s2i-rust
+      workingDir: "$(workspaces.git-source.path)"
+      command:
+        - /bin/bash
+      args:
+        - -c
+        - >-
+          ls -al &&
+          rustup override set nightly &&
+          cargo test --release
+  workspaces:
+    - name: git-source
+---
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: update-revision
+  namespace: rust-rest-build
+spec:
+  params:
+    - name: env
+      type: string
+    - name: revision
+      type: string
+  steps:
+    - name: bump-revision
+      image: quay.io/pabrahamsson/kustomize:latest
+      workingDir: "$(workspaces.deployment-repo-source.path)/$(params.env)"
+      script: |
+        kustomize edit set image rust-rest=image-registry.openshift-image-registry.svc:5000/rust-rest-build/rust-rest:$(params.revision)
+  workspaces:
+    - name: deployment-repo-source

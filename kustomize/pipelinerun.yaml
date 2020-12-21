@@ -1,0 +1,34 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: build-
+  namespace: rust-rest-build
+spec:
+  pipelineRef:
+    name: build
+  params:
+    - name: source-repo-url
+      value: https://github.com/pabrahamsson/rust-rest.git
+    - name: deployment-repo-url
+      value: https://github.com/pabrahamsson/rust-rest-deployment.git
+  serviceAccountName: pipeline
+  timeout: 1h0m0s
+  workspaces:
+    - name: dummy
+      emptyDir: {}
+    - name: app-deployment-source
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
+    - name: pipeline-ws1
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi

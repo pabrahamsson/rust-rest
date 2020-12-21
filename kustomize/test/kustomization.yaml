@@ -1,4 +1,0 @@
----
-namespace: rust-rest-test
-bases:
-  - ../base

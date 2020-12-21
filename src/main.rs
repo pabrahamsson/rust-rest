@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::Path;
+use std::sync::atomic::AtomicUsize;
 use std::sync::Mutex;
 
 use cargo_toml::Manifest;
@@ -65,27 +66,24 @@ fn new(message: Json<Message>, map: State<GreetingMap>) -> Option<Json<Greeting>
     let mut hashmap = map.lock().expect("map lock.");
     let id = hashmap.len() + 1;
     let msg = message.0.message;
-    hashmap.insert(id, msg);
-    hashmap.get(&id).map(|message| {
-        Json(Greeting {
-            id: Some(id),
-            message: message.clone(),
-        })
-    })
+    hashmap.insert(id, msg.clone());
+    Some(Json(Greeting {
+        id: Some(id),
+        message: msg,
+    }))
 }
 
 #[openapi]
 #[put("/greeting/<id>", format = "json", data = "<message>")]
 fn update(id: ID, message: Json<Message>, map: State<GreetingMap>) -> Option<Json<Greeting>> {
     let mut hashmap = map.lock().unwrap();
+    let msg = message.0.message;
     if hashmap.contains_key(&id) {
-        hashmap.insert(id, message.0.message);
-        hashmap.get(&id).map(|message| {
-            Json(Greeting {
-                id: Some(id),
-                message: message.clone(),
-            })
-        })
+        hashmap.insert(id, msg.clone());
+        Some(Json(Greeting {
+            id: Some(id),
+            message: msg.clone(),
+        }))
     } else {
         None
     }

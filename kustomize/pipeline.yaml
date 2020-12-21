@@ -1,0 +1,142 @@
+---
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: build
+  namespace: rust-rest-build
+spec:
+  params:
+    - name: source-repo-url
+      type: string
+    - name: deployment-repo-url
+      type: string
+  tasks:
+    - name: git-clone-source
+      taskRef:
+        name: git-clone
+        kind: ClusterTask
+      params:
+        - name: url
+          value: $(params.source-repo-url)
+        - name: deleteExisting
+          value: "true"
+      workspaces:
+        - name: output
+          workspace: pipeline-ws1
+    - name: get-is-tag
+      taskRef:
+        name: is-tags
+        kind: Task
+      params:
+        - name: git-tag
+          value: "$(tasks.git-clone-source.results.commit)"
+      workspaces:
+        - name: git-source
+          workspace: pipeline-ws1
+    - name: rust-test
+      taskRef:
+        name: rust-unit-test
+        kind: Task
+      runAfter:
+        - git-clone-source
+        - get-is-tag
+      workspaces:
+        - name: git-source
+          workspace: pipeline-ws1
+    - name: build-and-push
+      when:
+        - input: "$(tasks.git-clone-source.resutls.commit)"
+          operator: notin
+          values:
+            - "$(tasks.get-is-tag.results.is-tag)"
+      taskRef:
+        name: buildah
+        kind: ClusterTask
+      runAfter:
+        - rust-test
+      params:
+        - name: TLSVERIFY
+          value: "false"
+        - name: IMAGE
+          value: image-registry.openshift-image-registry.svc:5000/rust-rest-build/rust-rest:$(tasks.git-clone-source.results.commit)
+      workspaces:
+        - name: source
+          workspace: pipeline-ws1
+    - name: get-deployment-repo
+      taskRef:
+        name: git-clone
+        kind: ClusterTask
+      runAfter:
+        - build-and-push
+      params:
+        - name: url
+          value: $(params.deployment-repo-url)
+        - name: deleteExisting
+          value: "true"
+      workspaces:
+        - name: output
+          workspace: app-deployment-source
+    - name: set-revision
+      taskRef:
+        name: update-revision
+        kind: Task
+      runAfter:
+        - get-deployment-repo
+      params:
+        - name: env
+          value: dev
+        - name: revision
+          value: "$(tasks.git-clone-source.results.commit)"
+      workspaces:
+        - name: deployment-repo-source
+          workspace: app-deployment-source
+    - name: push-deployment
+      taskRef:
+        name: git-cli
+        kind: ClusterTask
+      runAfter:
+        - set-revision
+      params:
+        - name: GIT_USER_NAME
+          value: Petter Abrahamsson
+        - name: GIT_USER_EMAIL
+          value: petter@jebus.nu
+        - name: GIT_SCRIPT
+          value: |
+            git status
+            git diff
+            git commit -a -m "Update version"
+            git push origin
+      workspaces:
+        - name: source
+          workspace: app-deployment-source
+        - name: input
+          workspace: dummy
+#    - name: test-and-build
+#      when:
+#        - input: "$(tasks.git-clone-source.results.commit)"
+#          operator: notin
+#          values:
+#            - "$(tasks.get-is-tag.results.is-tag)"
+#      taskRef:
+#        name: rust-unit-and-build
+#        kind: Task
+#      runAfter:
+#        - git-clone-source
+#        - get-is-tag
+#      params:
+#        - name: commit
+#          value: "$(tasks.git-clone-source.results.commit)"
+#        - name: tag
+#          value: "$(tasks.get-is-tag.results.is-tag)"
+#      resources:
+#        outputs:
+#          - name: image
+#            resource: image
+#      workspaces:
+#        - name: git-source
+#          workspace: pipeline-ws1
+  workspaces:
+    - name: pipeline-ws1
+    - name: app-deployment-source
+    - name: dummy
