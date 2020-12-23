@@ -45,7 +45,7 @@ spec:
           workspace: pipeline-ws1
     - name: build-and-push
       when:
-        - input: "$(tasks.git-clone-source.resutls.commit)"
+        - input: "$(tasks.git-clone-source.results.commit)"
           operator: notin
           values:
             - "$(tasks.get-is-tag.results.is-tag)"
