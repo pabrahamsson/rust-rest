@@ -8,6 +8,8 @@ spec:
   params:
     - name: source-repo-url
       type: string
+    - name: git-revision-short
+      type: string
     - name: deployment-repo-url
       type: string
   tasks:
@@ -29,11 +31,16 @@ spec:
         kind: Task
       params:
         - name: git-tag
-          value: "$(tasks.git-clone-source.results.commit)"
+          value: "$(params.git-revision-short)"
       workspaces:
         - name: git-source
           workspace: pipeline-ws1
     - name: rust-test
+      when:
+        - input: "$(params.git-revision-short)"
+          operator: notin
+          values:
+            - "$(tasks.get-is-tag.results.is-tag)"
       taskRef:
         name: rust-unit-test
         kind: Task
@@ -44,11 +51,6 @@ spec:
         - name: git-source
           workspace: pipeline-ws1
     - name: build-and-push
-      when:
-        - input: "$(tasks.git-clone-source.results.commit)"
-          operator: notin
-          values:
-            - "$(tasks.get-is-tag.results.is-tag)"
       taskRef:
         name: buildah
         kind: ClusterTask
@@ -58,7 +60,7 @@ spec:
         - name: TLSVERIFY
           value: "false"
         - name: IMAGE
-          value: image-registry.openshift-image-registry.svc:5000/rust-rest-build/rust-rest:$(tasks.git-clone-source.results.commit)
+          value: image-registry.openshift-image-registry.svc:5000/rust-rest-build/rust-rest:$(params.git-revision-short)
       workspaces:
         - name: source
           workspace: pipeline-ws1
@@ -86,7 +88,7 @@ spec:
         - name: env
           value: dev
         - name: revision
-          value: "$(tasks.git-clone-source.results.commit)"
+          value: "$(paramns.git-revision-short)"
       workspaces:
         - name: deployment-repo-source
           workspace: app-deployment-source
@@ -105,7 +107,7 @@ spec:
           value: |
             git status
             git diff
-            git commit -a -m "Update to revision $(git rev-parse --short HEAD | tr -d '\n')"
+            git commit -a -m "Update to revision $(params.git-revision-short)"
             git push origin HEAD:main
       workspaces:
         - name: source

@@ -44,7 +44,7 @@ spec:
       args:
         - -c
         - |
-          oc get is rust-rest --template '{{range .status.tags}}{{.tag}}{{"\n"}}{{end}}' | grep $(echo "$(params.git-tag)" | tr -d '\n') | tee $(results.is-tag.path)
+          oc get is rust-rest -ojsonpath='{.status.tags[?(@.tag == "$(params.git-tag)")].tag}' | tee $(results.is-tag.path)
   workspaces:
     - name: git-source
       mountPath: /workspace/source

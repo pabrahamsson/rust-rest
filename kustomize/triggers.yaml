@@ -5,17 +5,18 @@ metadata:
 spec:
   serviceAccountName: pipeline
   triggers:
-    - interceptors:
-      - github:
-          secretRef:
-            secretName: rust-rest-webhook
-            secretKey: token
-          eventTypes:
-            - push
-      - cel:
-          overlays:
-            - key: extensions.head_commit.truncated_id
-              expression: 'body.head_commit.id.truncate(7)'
+    - name: github-listener
+      interceptors:
+        - github:
+            secretRef:
+              secretName: rust-rest-webhook
+              secretKey: token
+            eventTypes:
+              - push
+        - cel:
+            overlays:
+              - key: extensions.head_commit.truncated_id
+                expression: 'body.head_commit.id.truncate(7)'
       bindings:
         - ref: rust-rest-trigger-binding
       template:
@@ -27,14 +28,14 @@ metadata:
   name: rust-rest-trigger-binding
 spec:
   params:
-    - name: git-repo-url
-      value: $(body.repository.url)
-    - name: git-repo-name
-      value: $(body.repository.name)
-    - name: git-revsion
-      value: $(body.head_commit.id)
-    - name: git-revision-short
-      value: $(body.extensions.head_commit.truncated_id)
+  - name: git-repo-url
+    value: "$(body.repository.url)"
+  - name: git-repo-name
+    value: "$(body.repository.name)"
+  - name: git-revision
+    value: "$(body.head_commit.id)"
+  - name: git-revision-short
+    value: "$(body.extensions.head_commit.truncated_id)"
 ---
 apiVersion: triggers.tekton.dev/v1alpha1
 kind: TriggerTemplate
@@ -42,49 +43,51 @@ metadata:
   name: rust-rest-trigger-template
 spec:
   params:
-    - name: git-repo-url
-    - name: git-revision
-      default: master
-    - name: git-revision-short
-    - name: git-repo-name
-    - name: deployment-git-repo-url
-      default: git@github.com:pabrahamsson/rust-rest-deployment.git
-    - name: deployment-git-revision
-    - name: image-registry
-      default: image-registry.openshift-image-registry.svc:5000
-    - name: image-repo
-      default: rust-rest-build/rust-rest
+  - name: git-repo-url
+  - name: git-revision
+    default: master
+  - name: git-revision-short
+  - name: git-repo-name
+  - name: deployment-git-repo-url
+    default: git@github.com:pabrahamsson/rust-rest-deployment.git
+  - name: deployment-git-revision
+  - name: image-registry
+    default: image-registry.openshift-image-registry.svc:5000
+  - name: image-repo
+    default: rust-rest-build/rust-rest
   resourcetemplates:
-    - apiVersion: tekton.dev/v1beta1
-      kind: PipelineRun
-      metadata:
-        generateName: $(params.git-repo-name)-run-$(params.git-revision-short)
-      spec:
-        pipelineRef:
-          name: build
-        params:
-          - name: source-repo-url
-            value: $(params.git-repo-url)
-          - name: deployment-repo-url
-            value: $(params.deployment-git-repo-url)
-        serviceAccountName: pipeline
-        timeout: 1h0m0s
-        workspaces:
-          - name: dummy
-            emptyDir: {}
-          - name: app-deployment-source
-            volumeClaimTemplate:
-              spec:
-                accessModes:
-                  - ReadWriteOnce
-                resources:
-                  requests:
-                    storage: 1Gi
-          - name: pipeline-ws1
-            volumeClaimTemplate:
-              spec:
-                accessModes:
-                  - ReadWriteOnce
-                resources:
-                  requests:
-                    storage: 1Gi
+  - apiVersion: tekton.dev/v1beta1
+    kind: PipelineRun
+    metadata:
+      generateName: rust-rest-run-
+    spec:
+      pipelineRef:
+        name: build
+      params:
+      - name: source-repo-url
+        value: $(tt.params.git-repo-url)
+      - name: deployment-repo-url
+        value: $(tt.params.deployment-git-repo-url)
+      - name: git-revsion-short
+        value: $(tt.params.git-revision-short)
+      serviceAccountName: pipeline
+      timeout: 1h0m0s
+      workspaces:
+      - name: dummy
+        emptyDir: {}
+      - name: app-deployment-source
+        volumeClaimTemplate:
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 1Gi
+      - name: pipeline-ws1
+        volumeClaimTemplate:
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 1Gi
