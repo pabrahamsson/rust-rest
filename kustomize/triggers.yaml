@@ -68,7 +68,7 @@ spec:
         value: $(tt.params.git-repo-url)
       - name: deployment-repo-url
         value: $(tt.params.deployment-git-repo-url)
-      - name: git-revsion-short
+      - name: git-revision-short
         value: $(tt.params.git-revision-short)
       serviceAccountName: pipeline
       timeout: 1h0m0s
