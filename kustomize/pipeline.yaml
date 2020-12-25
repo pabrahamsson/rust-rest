@@ -88,7 +88,7 @@ spec:
         - name: env
           value: dev
         - name: revision
-          value: "$(paramns.git-revision-short)"
+          value: "$(params.git-revision-short)"
       workspaces:
         - name: deployment-repo-source
           workspace: app-deployment-source
