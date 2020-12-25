@@ -34,17 +34,24 @@ spec:
   params:
     - name: git-tag
       type: string
+    - name: verbose
+      type: string
+      default: "true"
   results:
     - name: is-tag
   steps:
     - name: get-tag-in-is
       image: quay.io/openshift/origin-cli:latest
-      command:
-        - /bin/bash
-      args:
-        - -c
-        - |
-          oc get is rust-rest -ojsonpath='{.status.tags[?(@.tag == "$(params.git-tag)")].tag}' | tee $(results.is-tag.path)
+      script: |
+        #!/bin/sh
+        set -eu -o pipefail
+
+        if [[ "$(params.verbose)" == "true" ]] ; then
+          set -x
+        fi
+
+        IS_TAG=$(oc get is rust-rest -ojsonpath='{.status.tags[?(@.tag == "$(params.git-tag)")].tag}')
+        echo -n "$IS_TAG" > $(results.is-tag.path)
   workspaces:
     - name: git-source
       mountPath: /workspace/source
