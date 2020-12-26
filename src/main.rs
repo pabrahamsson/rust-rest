@@ -14,7 +14,6 @@ use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::Path;
-use std::sync::atomic::AtomicUsize;
 use std::sync::Mutex;
 
 use cargo_toml::Manifest;
@@ -62,30 +61,33 @@ fn root() -> Redirect {
 
 #[openapi]
 #[post("/greeting/new", format = "json", data = "<message>")]
-fn new(message: Json<Message>, map: State<GreetingMap>) -> Option<Json<Greeting>> {
+fn new(message: Json<Message>, map: State<GreetingMap>) -> Option<JsonValue> {
     let mut hashmap = map.lock().expect("map lock.");
     let id = hashmap.len() + 1;
     let msg = message.0.message;
-    hashmap.insert(id, msg.clone());
-    Some(Json(Greeting {
-        id: Some(id),
-        message: msg,
-    }))
+    match hashmap.insert(id, msg.clone()) {
+        Some(_) => Some(json!({
+            "id": Some(id),
+            "message": msg
+        })),
+        None => Some(json!({
+            "id": Some(id),
+            "message": msg
+        })),
+    }
 }
 
 #[openapi]
 #[put("/greeting/<id>", format = "json", data = "<message>")]
-fn update(id: ID, message: Json<Message>, map: State<GreetingMap>) -> Option<Json<Greeting>> {
+fn update(id: ID, message: Json<Message>, map: State<GreetingMap>) -> Option<JsonValue> {
     let mut hashmap = map.lock().unwrap();
     let msg = message.0.message;
-    if hashmap.contains_key(&id) {
-        hashmap.insert(id, msg.clone());
-        Some(Json(Greeting {
-            id: Some(id),
-            message: msg.clone(),
-        }))
-    } else {
-        None
+    match hashmap.insert(id, msg.clone()) {
+        Some(_) => Some(json!({
+            "id": Some(id),
+            "message": msg
+        })),
+        None => None,
     }
 }
 
@@ -105,14 +107,15 @@ fn list(map: State<GreetingMap>) -> Json<Vec<Greeting>> {
 
 #[openapi]
 #[get("/greeting/<id>", format = "json")]
-fn get(id: ID, map: State<GreetingMap>) -> Option<Json<Greeting>> {
+fn get(id: ID, map: State<GreetingMap>) -> Option<JsonValue> {
     let hashmap = map.lock().unwrap();
-    hashmap.get(&id).map(|message| {
-        Json(Greeting {
-            id: Some(id),
-            message: message.clone(),
-        })
-    })
+    match hashmap.get(&id) {
+        Some(msg) => Some(json!({
+            "id": id,
+            "message": &msg
+        })),
+        None => None,
+    }
 }
 
 #[openapi]
@@ -184,6 +187,7 @@ fn rocket() -> rocket::Rocket {
     let hostname = get_hostinfo();
     let version = get_version();
     let prometheus = PrometheusMetrics::new();
+    let greeting = Mutex::new(HashMap::<ID, String>::new());
     rocket::ignite()
         .attach(prometheus.clone())
         .mount("/", routes![root, version, health])
@@ -200,7 +204,7 @@ fn rocket() -> rocket::Rocket {
             }),
         )
         .register(catchers![not_found])
-        .manage(Mutex::new(HashMap::<ID, String>::new()))
+        .manage(greeting)
         .manage(envmap)
         .manage(hostname)
         .manage(version)
